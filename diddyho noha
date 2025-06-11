@@ -1,0 +1,133 @@
+const presetsKey = "presets";
+
+async function getInput(prompt) {
+  let alert = new Alert();
+  alert.title = prompt;
+  alert.addTextField();
+  alert.addAction("OK");
+  alert.addCancelAction("Cancel");
+  let response = await alert.present();
+  if (response === -1) return null; // Cancel pressed
+  let text = alert.textFieldValue(0).trim();
+  return text;
+}
+
+async function main() {
+  let presets = await loadPresets();
+  let presetNames = Object.keys(presets);
+  
+  let presetChoice = await getInput("Zvolte preset (nebo 'nový' pro vytvoření nového):\n" + presetNames.join(", "));
+  if (presetChoice === null) return;
+
+  let bodyList = [];
+  let maxBodyList = [];
+  let vahaList = [];
+
+  if (presetChoice.toLowerCase() === "nový") {
+    // Nový preset
+    await collectGrades(bodyList, maxBodyList, vahaList);
+    let presetName = await getInput("Zadejte název pro nový preset:");
+    if (presetName) {
+      presets[presetName] = { bodyList, maxBodyList, vahaList };
+      await savePresets(presets);
+    }
+  } else if (presets[presetChoice]) {
+    // Načíst existující preset
+    bodyList = presets[presetChoice].bodyList;
+    maxBodyList = presets[presetChoice].maxBodyList;
+    vahaList = presets[presetChoice].vahaList;
+
+    let action = await getInput("Zvolte akci: 'upravit' pro úpravu, 'odstranit' pro odstranění:");
+    if (action === "upravit") {
+      await collectGrades(bodyList, maxBodyList, vahaList, true);
+    } else if (action === "odstranit") {
+      delete presets[presetChoice];
+      await savePresets(presets);
+    }
+  }
+
+  if (bodyList.length === 0) {
+    await showMessage("Nebyla zadána žádná známka.");
+    return;
+  }
+
+  let prumer = vypocetPrumeru(bodyList, maxBodyList, vahaList);
+  await showMessage(`Celkový průměr: ${prumer.toFixed(2)}%`);
+}
+
+async function collectGrades(bodyList, maxBodyList, vahaList, isEditing = false) {
+  while (true) {
+    let bodyInput = await getInput("Zadejte získané body (nebo 'exit' pro ukončení):");
+    if (bodyInput === null || bodyInput.toLowerCase() === "exit") break;
+
+    let ziskaneBody = parseFloat(bodyInput);
+    if (isNaN(ziskaneBody)) {
+      await showMessage("Neplatný vstup pro získané body. Zkuste to znovu.");
+      continue;
+    }
+
+    let maxBodInput = await getInput("Zadejte maximální počet bodů:");
+    if (maxBodInput === null) break;
+    let maxBod = parseFloat(maxBodInput);
+    if (isNaN(maxBod) || maxBod <= 0) {
+      await showMessage("Neplatný vstup pro maximální počet bodů. Zkuste to znovu.");
+      continue;
+    }
+
+    let vahaInput = await getInput("Zadejte váhu (1-10):");
+    if (vahaInput === null) break;
+    let vahaZnamky = parseFloat(vahaInput);
+    if (isNaN(vahaZnamky) || vahaZnamky < 1 || vahaZnamky > 10) {
+      await showMessage("Neplatná váha. Zadejte číslo od 1 do 10.");
+      continue;
+    }
+
+    if (isEditing) {
+      // Upravujeme existující známky
+      let index = await getInput("Zadejte index známky k úpravě (0 pro první, 1 pro druhou atd.):");
+      if (index === null) break;
+      index = parseInt(index);
+      if (index >= 0 && index < bodyList.length) {
+        bodyList[index] = ziskaneBody;
+        maxBodyList[index] = maxBod;
+        vahaList[index] = vahaZnamky;
+      } else {
+        await showMessage("Neplatný index.");
+      }
+    } else {
+      // Přidáváme nové známky
+      bodyList.push(ziskaneBody);
+      maxBodyList.push(maxBod);
+      vahaList.push(vahaZnamky);
+    }
+  }
+}
+
+function vypocetPrumeru(body, maxBody, vaha) {
+  let soucet = 0;
+  let soucetVah = 0;
+  for (let i = 0; i < body.length; i++) {
+    let normalizovaneBody = (body[i] / maxBody[i]) * vaha[i];
+    soucet += normalizovaneBody;
+    soucetVah += vaha[i];
+  }
+  return soucetVah > 0 ? (soucet / soucetVah) * 100 : 0;
+}
+
+async function showMessage(message) {
+  let alert = new Alert();
+  alert.message = message;
+  alert.addAction("OK");
+  await alert.present();
+}
+
+async function loadPresets() {
+  let presets = await KeyValueStore.getItem(presetsKey);
+  return presets ? JSON.parse(presets) : {};
+}
+
+async function savePresets(presets) {
+  await KeyValueStore.setItem(presetsKey, JSON.stringify(presets));
+}
+
+await main();
