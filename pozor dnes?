@@ -1,5 +1,4 @@
-// Tento kód je návrh pro použití v iOS Shortcatu například v aplikaci Scriptable,
-// kde lze spouštět JavaScript a přijímat vstupy interaktivně.
+// Tohle je JS kod pro IOS shortcut, ktery se pouzije nejlepe v aplikaci Scriptable
 // Logika: opakovaně získává hodnoty (body, maxBody, váhu), dokud uživatel nezadá 'exit'.
 // Poté vypočítá vážený průměr v  procentech a zobrazí výsledek.
 
